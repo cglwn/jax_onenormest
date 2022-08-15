@@ -5,17 +5,17 @@ import jax.numpy as jnp
 def _sample_pm_one_linearly_independent(A, n):
   """Samples a vector with elements drawn from {1, -1} that is not parallel with columns of A.
   """
-  key = jax.random.PRNGKey(0)
-  elements = []
   vec = _sample_pm_one(n)
-  for i in range(A.shape[1]):
+  for i in jnp.arange(A.shape[1]):
     col = A[:, i]
     if _parallel(col, vec):
       return _sample_pm_one_linearly_independent(A, n)
   return vec
 
+def pprint(s):
+  ...
 def _sample_pm_one(n: int):
-  key = jax.random.PRNGKey(0)
+  key = random.PRNGKey(0)
   return random.choice(key, jnp.array([-1.0, 1.0]), (n, 1))
 
 def _construct_X(n, t):
@@ -23,8 +23,8 @@ def _construct_X(n, t):
   """
   X = jnp.ones((n, 1))
 
-  key = jax.random.PRNGKey(0)
-  for i in range(1, t):
+  key = random.PRNGKey(0)
+  for i in jnp.arange(1, t):
     X_i = random.choice(key, jnp.array([-1, 1]), (n, 1))
     while _has_parallel(X, X_i):
       X_i = _sample_pm_one(n)
@@ -49,7 +49,7 @@ def onenormest(A, t, itmax):
   n = A.shape[0]
   AT = A.T
   X = _construct_X(n, t)
-  print(f"X={X}")
+  pprint(f"X={X}")
   est = 0
   est_old = 0
   k = 1
@@ -70,13 +70,13 @@ def onenormest(A, t, itmax):
     # (1)
     if k >= 2 and est <= est_old:
       est = est_old
-      print("(1) k >= 2 and est <= est_old")
+      pprint("(1) k >= 2 and est <= est_old")
       break
     est_old = est
     S_old = S
 
     if k > itmax:
-      print("(1) k > itmax")
+      pprint("(1) k > itmax")
       break
     sign = lambda x: jnp.where(x >= 0.0, 1.0, -1.0)
     S = sign(Y)
@@ -93,7 +93,7 @@ def onenormest(A, t, itmax):
       if parallel_to_S_old(S[:, i]):
         all_parallel = False
     if all_parallel:
-      print("(2) all_parallel")
+      pprint("(2) all_parallel")
       break
     if t > 1 and k > 1:
       for i in range(t):
@@ -105,37 +105,42 @@ def onenormest(A, t, itmax):
           S = S.at[:, i].set(new_S_i)
     
     # (3)
-    Z = A.T @ S
-    h = jnp.linalg.norm(Y, ord="inf", axis=0)
+    Z = AT @ S
+    pprint(f"\tZ={Z}")
+    h = jnp.linalg.norm(Z, ord=jnp.inf, axis=1)
 
     # (4)
     if k >= 2 and max(h) == h[ind_best]:
-      print("(4) k >= 2 and max(h) == h[ind_best]")
+      pprint("(4) k >= 2 and max(h) == h[ind_best]")
       break
-    print(f"\th={h}")
-    ind = jnp.argsort(h)
+    pprint(f"\th={h}")
+    ind = jnp.flip(jnp.argsort(h))
+    pprint(f"\tind={ind}")
     h = h[ind]
+    pprint(f"\th={h}")
 
     # (5)
     if t > 1:
       contained = jnp.isin(ind[:t], ind_hist)
       if contained.all():
-        print("(5) jnp.in1d(ind[:t], ind_hist).all()")
+        pprint("(5) jnp.in1d(ind[:t], ind_hist).all()")
         break
-      seen = jnp.in1d(ind, ind_hist)
-      print(f"\tseen={seen}")
+      seen = jnp.isin(ind, ind_hist)
+      pprint(f"\tseen={seen}")
       # Replace ind(1:t) by the first t indices in ind(1:n) that are not in
       # ind_hist.
       ind = jnp.concatenate((ind[~seen], ind[seen]))
-    print(f"\tind={ind}")
+    pprint(f"\tind={ind}")
     X_cols = []
     for j in range(t):
       e_ind_j = zeros.at[ind[j]].set(1.0)
       X_cols.append(e_ind_j)
-    print(f"\tX_cols={X_cols}")
+    pprint(f"\tX_cols={X_cols}")
     X = jnp.concatenate((X_cols), axis=1)
-    print(f"\tX={X}")
+    pprint(f"\tX={X}")
     # ind_hist = jnp.concatenate((int_hist, new_ind))
+    new_ind = ind[:t][~jnp.isin(ind[:t], ind_hist)]
+    ind_hist = jnp.concatenate((ind_hist, new_ind))
 
     k += 1
 
@@ -144,4 +149,4 @@ def onenormest(A, t, itmax):
 
 if __name__ == "__main__":
   A = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-  onenormest(A, t=2, itmax=5)
+  print(f"{onenormest(A, t=2, itmax=5)=}")
